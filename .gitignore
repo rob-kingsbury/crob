@@ -1,0 +1,20 @@
+# Crob's brain files (don't share your knowledge!)
+data/crob.crob
+data/crob.voice
+data/crob.queue
+
+# But keep the directory
+!data/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log

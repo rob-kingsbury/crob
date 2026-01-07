@@ -1,0 +1,6 @@
+# This directory holds Crob's brain files.
+# They're gitignored because your Crob's knowledge is personal.
+# Files created here:
+#   - crob.crob  (knowledge brain)
+#   - crob.voice (language patterns)
+#   - crob.queue (research queue)
