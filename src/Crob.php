@@ -11,6 +11,7 @@ require_once __DIR__ . '/Brain.php';
 require_once __DIR__ . '/Voice.php';
 require_once __DIR__ . '/Curiosity.php';
 require_once __DIR__ . '/Research.php';
+require_once __DIR__ . '/Interests.php';
 
 class Crob
 {
@@ -18,6 +19,7 @@ class Crob
     private Voice $voice;
     private Curiosity $curiosity;
     private Research $research;
+    private Interests $interests;
     private string $dataDir;
 
     // Intent patterns
@@ -37,6 +39,7 @@ class Crob
         $this->voice = new Voice($this->dataDir);
         $this->curiosity = new Curiosity($this->dataDir);
         $this->research = new Research($this->brain, $this->voice, $this->curiosity);
+        $this->interests = new Interests($this->brain, $this->curiosity, $this->dataDir);
     }
 
     /**
@@ -70,10 +73,11 @@ class Crob
                 if (!empty($related)) {
                     $relatedTopic = array_keys($related)[0];
                     $response .= "\n\n" . $this->voice->expressCuriosity($relatedTopic);
+                    $boost = $this->interests->priorityBoost($relatedTopic);
                     $this->curiosity->enqueue($relatedTopic, [
                         'origin' => $topic,
                         'reason' => "Got curious while answering about $topic",
-                        'priority' => 0.6,
+                        'priority' => 0.6 + $boost,
                     ]);
                 }
             }
@@ -126,7 +130,10 @@ class Crob
         $topic = $next['topic'];
         $results = $this->research->investigate($topic, $next['depth'] ?? 1);
 
-        $this->curiosity->complete($topic);
+        $this->curiosity->complete($topic, ['origin' => $next['origin'] ?? 'unknown']);
+
+        // Re-analyze interests after learning
+        $this->interests->analyze();
 
         return [
             'topic' => $topic,
@@ -217,12 +224,21 @@ class Crob
      */
     public function stats(): array
     {
+        $profile = $this->interests->load();
+        $established = $profile ? count($profile['established'] ?? []) : 0;
+        $tentative = $profile ? count($profile['tentative'] ?? []) : 0;
+
         return [
             'knowledge' => [
                 'facts' => $this->brain->countFacts(),
                 'subjects' => count($this->brain->subjects()),
             ],
             'curiosity' => $this->curiosity->stats(),
+            'interests' => [
+                'established' => $established,
+                'tentative' => $tentative,
+                'top' => array_keys($this->interests->top(3)),
+            ],
             'born' => filemtime($this->dataDir . '/crob.crob') ?: null,
         ];
     }
@@ -252,7 +268,24 @@ class Crob
             'brain' => $this->brain->dump(),
             'voice' => $this->voice->dump(),
             'curiosity' => $this->curiosity->dump(),
+            'interests' => $this->interests->dump(),
         ];
+    }
+
+    /**
+     * Analyze and return interest profile
+     */
+    public function analyzeInterests(): array
+    {
+        return $this->interests->analyze();
+    }
+
+    /**
+     * Get top interests (from last analysis)
+     */
+    public function topInterests(int $n = 3): array
+    {
+        return $this->interests->top($n);
     }
 
     /**

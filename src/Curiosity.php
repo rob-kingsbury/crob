@@ -76,7 +76,7 @@ class Curiosity
         }
 
         // Already learned?
-        if (in_array(strtolower($topic), array_map('strtolower', $this->completed))) {
+        if ($this->wasCompleted($topic)) {
             return false;
         }
 
@@ -124,7 +124,7 @@ class Curiosity
     /**
      * Mark topic as completed
      */
-    public function complete(string $topic): void
+    public function complete(string $topic, array $meta = []): void
     {
         $topic = trim($topic);
 
@@ -132,8 +132,12 @@ class Curiosity
         $this->queue = array_filter($this->queue, fn($item) => strcasecmp($item['topic'], $topic) !== 0);
         $this->queue = array_values($this->queue);  // Re-index
 
-        // Add to completed
-        $this->completed[] = $topic;
+        // Add to completed with metadata
+        $this->completed[] = [
+            'topic' => $topic,
+            'completed_at' => time(),
+            'origin' => $meta['origin'] ?? 'unknown',
+        ];
 
         $this->save();
     }
@@ -167,7 +171,42 @@ class Curiosity
             }
         }
 
-        return in_array($topic, array_map('strtolower', $this->completed));
+        return $this->wasCompleted($topic);
+    }
+
+    /**
+     * Check if a topic exists in the completed list (handles legacy string + enriched object formats)
+     */
+    private function wasCompleted(string $topic): bool
+    {
+        $topic = strtolower(trim($topic));
+
+        foreach ($this->completed as $item) {
+            $completedTopic = is_array($item) ? ($item['topic'] ?? '') : $item;
+            if (strtolower($completedTopic) === $topic) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get completed items (normalized — always returns enriched format)
+     */
+    public function completedItems(): array
+    {
+        return array_map(function ($item) {
+            if (is_array($item)) {
+                return $item;
+            }
+            // Legacy string format — backfill with defaults
+            return [
+                'topic' => $item,
+                'completed_at' => null,
+                'origin' => 'unknown',
+            ];
+        }, $this->completed);
     }
 
     /**

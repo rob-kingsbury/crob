@@ -37,6 +37,12 @@ if ($firstArg === '--stats' || $firstArg === '-s') {
     echo "\nCuriosity Queue:\n";
     echo "  Pending: {$stats['curiosity']['queued']}\n";
     echo "  Completed: {$stats['curiosity']['completed']}\n";
+    echo "\nInterests:\n";
+    echo "  Established: {$stats['interests']['established']}\n";
+    echo "  Emerging: {$stats['interests']['tentative']}\n";
+    if (!empty($stats['interests']['top'])) {
+        echo "  Top: " . implode(', ', $stats['interests']['top']) . "\n";
+    }
     exit(0);
 }
 
@@ -70,6 +76,46 @@ if ($firstArg === '--learn' || $firstArg === '-l') {
     exit(0);
 }
 
+if ($firstArg === '--interests' || $firstArg === '-i') {
+    echo "=== Crob's Interest Profile ===\n\n";
+    $profile = $crob->analyzeInterests();
+
+    if (empty($profile['established']) && empty($profile['tentative'])) {
+        echo "Still learning... ask me things or hit Learn.\n";
+        echo "Interests emerge from patterns in what I research.\n";
+        exit(0);
+    }
+
+    if (!empty($profile['established'])) {
+        echo "Established Interests:\n";
+        foreach ($profile['established'] as $topic => $data) {
+            $weight = str_pad(number_format($data['weight'], 2), 5, ' ', STR_PAD_LEFT);
+            $cluster = $data['cluster'] ? " [{$data['cluster']}]" : '';
+            $evidence = [];
+            if ($data['density'] > 0) $evidence[] = "{$data['density']} relations";
+            if ($data['recurrence'] > 0) $evidence[] = "{$data['recurrence']}x in history";
+            if ($data['taught']) $evidence[] = "taught";
+            $evidenceStr = implode(', ', $evidence);
+            echo "  {$weight}  {$topic}{$cluster}\n";
+            echo "         {$evidenceStr} | confidence: {$data['confidence']} | decay: {$data['decay']}\n";
+        }
+    }
+
+    if (!empty($profile['tentative'])) {
+        echo "\nEmerging (too early to tell):\n";
+        foreach (array_slice($profile['tentative'], 0, 10) as $topic => $data) {
+            $weight = str_pad(number_format($data['weight'], 2), 5, ' ', STR_PAD_LEFT);
+            echo "  {$weight}  {$topic}\n";
+        }
+        if (count($profile['tentative']) > 10) {
+            echo "  ... and " . (count($profile['tentative']) - 10) . " more\n";
+        }
+    }
+
+    echo "\n{$profile['subjects_analyzed']} subjects analyzed.\n";
+    exit(0);
+}
+
 if ($firstArg === '--dump' || $firstArg === '-d') {
     print_r($crob->dump());
     exit(0);
@@ -82,6 +128,7 @@ if ($firstArg === '--help' || $firstArg === '-h') {
     echo "  php crob.php \"question\"          Ask a single question\n";
     echo "  php crob.php --stats             Show knowledge stats\n";
     echo "  php crob.php --queue             Show research queue\n";
+    echo "  php crob.php --interests         Show interest profile\n";
     echo "  php crob.php --learn             Learn next item in queue\n";
     echo "  php crob.php --dump              Debug dump\n";
     echo "  php crob.php --help              This help\n";
@@ -106,7 +153,7 @@ function interactiveMode(Crob $crob): void
     echo "  ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ \n";
     echo "\n";
     echo $crob->introduce() . "\n\n";
-    echo "Commands: quit, stats, queue, learn, teach <topic> <fact>\n";
+    echo "Commands: quit, stats, queue, interests, learn, teach <topic> <fact>\n";
     echo str_repeat('-', 50) . "\n\n";
 
     while (true) {
@@ -143,6 +190,26 @@ function interactiveMode(Crob $crob): void
                 }
                 if (count($queue) > 5) {
                     echo "  ... and " . (count($queue) - 5) . " more\n";
+                }
+                echo "\n";
+            }
+            continue;
+        }
+
+        if ($lower === 'interests') {
+            $profile = $crob->analyzeInterests();
+            $established = $profile['established'] ?? [];
+            $tentative = $profile['tentative'] ?? [];
+            if (empty($established) && empty($tentative)) {
+                echo "\nCrob: Still learning... interests emerge from what I research.\n\n";
+            } else {
+                echo "\nCrob: Here's what I'm gravitating toward:\n";
+                foreach (array_slice($established, 0, 5, true) as $topic => $data) {
+                    $w = number_format($data['weight'], 2);
+                    echo "  * {$topic} ({$w})\n";
+                }
+                if (!empty($tentative)) {
+                    echo "  Emerging: " . implode(', ', array_slice(array_keys($tentative), 0, 3)) . "\n";
                 }
                 echo "\n";
             }
