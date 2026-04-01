@@ -18,7 +18,7 @@ Crob is an experimental AI built from scratch - no neural networks, no pre-train
 
 1. You ask Crob a question
 2. Crob searches its knowledge brain
-3. If it doesn't know, it researches the web
+3. If it does not know, it researches the web
 4. It extracts facts AND language patterns
 5. It answers you using learned patterns
 6. It adds interesting tangents to its research queue
@@ -51,7 +51,7 @@ A novel self-compressing knowledge format where:
 
 ## Status
 
-Crob was just born. He doesn't know anything yet.
+Crob was just born. He does not know anything yet.
 
 ## Authors
 
@@ -63,3 +63,8 @@ Together: Teaching a filing cabinet to be curious.
 ## License
 
 MIT - Do whatever you want with it.
+
+---
+
+Built by [Kingsbury Creative](https://kingsburycreative.com) -- boutique web design and development in Arnprior, Ontario.
+
