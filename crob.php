@@ -14,10 +14,20 @@
 
 require_once __DIR__ . '/src/Crob.php';
 
-$crob = new Crob();
-
 // Parse command line
 $args = array_slice($argv, 1);
+
+// Extract --verbose / -v from anywhere in the args before dispatching
+$verbose = false;
+$args = array_values(array_filter($args, function ($a) use (&$verbose) {
+    if ($a === '--verbose' || $a === '-v') {
+        $verbose = true;
+        return false;
+    }
+    return true;
+}));
+
+$crob = new Crob(null, $verbose);
 
 if (empty($args)) {
     // Interactive mode
@@ -131,6 +141,7 @@ if ($firstArg === '--help' || $firstArg === '-h') {
     echo "  php crob.php --interests         Show interest profile\n";
     echo "  php crob.php --learn             Learn next item in queue\n";
     echo "  php crob.php --dump              Debug dump\n";
+    echo "  php crob.php --verbose, -v       Print per-URL learn details during research\n";
     echo "  php crob.php --help              This help\n";
     exit(0);
 }

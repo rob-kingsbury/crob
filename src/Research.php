@@ -12,12 +12,14 @@ class Research
     private Voice $voice;
     private Curiosity $curiosity;
     private array $config;
+    private bool $verbose;
 
-    public function __construct(Brain $brain, Voice $voice, Curiosity $curiosity)
+    public function __construct(Brain $brain, Voice $voice, Curiosity $curiosity, bool $verbose = false)
     {
         $this->brain = $brain;
         $this->voice = $voice;
         $this->curiosity = $curiosity;
+        $this->verbose = $verbose;
 
         $this->config = [
             'max_results' => 5,
@@ -43,14 +45,22 @@ class Research
         $urls = $this->search($topic);
         $results['sources'] = $urls;
 
-        // Fetch and extract from each result
+        // Fetch, extract, and learn from each result (one-pass per URL so $url
+        // can flow as the provenance source into Brain::learn). Dedup happens
+        // in the merge block — don't array_unique facts here, that would throw
+        // away cross-source corroboration signal.
         foreach ($urls as $url) {
             $content = $this->fetch($url);
             if (!$content) continue;
 
-            // Extract facts
             $facts = $this->extractFacts($content, $topic);
             $results['facts'] = array_merge($results['facts'], $facts);
+
+            $learnResults = [];
+            foreach ($facts as $fact) {
+                $relation = $this->detectRelation($fact);
+                $learnResults[] = $this->brain->learn($topic, $relation, $fact, 0.5, $url);
+            }
 
             // Learn language patterns
             $sentences = $this->extractSentences($content, $topic);
@@ -61,17 +71,14 @@ class Research
             // Find rabbit holes (related topics)
             $related = $this->extractRelatedTopics($content, $topic);
             $results['rabbit_holes'] = array_merge($results['rabbit_holes'], $related);
+
+            if ($this->verbose) {
+                $this->printVerbose($url, $facts, $learnResults);
+            }
         }
 
-        // Deduplicate
-        $results['facts'] = array_unique($results['facts']);
+        // Rabbit holes still dedup — that's unrelated to source provenance.
         $results['rabbit_holes'] = array_unique($results['rabbit_holes']);
-
-        // Store in brain
-        foreach ($results['facts'] as $fact) {
-            $relation = $this->detectRelation($fact);
-            $this->brain->learn($topic, $relation, $fact);
-        }
 
         // Queue rabbit holes if not too deep
         if ($depth < $this->config['max_iterations']) {
@@ -303,6 +310,46 @@ class Research
             return Brain::REL_RELATES;
         }
         return Brain::REL_IS;  // Default
+    }
+
+    /**
+     * Print --verbose output for one URL's learn batch. Format locked by
+     * Morgan in the plan review: per-URL summary line, per-fact detail only
+     * when something interesting happened (new/corroborated/ambiguous).
+     * Restatements are noise and get suppressed.
+     */
+    private function printVerbose(string $url, array $facts, array $learnResults): void
+    {
+        $domain = $this->brain->extractDomain($url) ?? $url;
+        $factCount = count($facts);
+
+        $stored = 0;
+        $duplicate = 0;
+        foreach ($learnResults as $r) {
+            if ($r['tier'] === 'restatement') {
+                $duplicate++;
+            } else {
+                $stored++;
+            }
+        }
+
+        echo "[learn] {$domain} -> {$factCount} facts ({$stored} stored, {$duplicate} duplicate)\n";
+
+        foreach ($learnResults as $r) {
+            if ($r['tier'] === 'restatement') {
+                continue;  // suppress noise
+            }
+            $subject = $r['subject'];
+            $rel = Brain::relationName($r['relation']);
+            $conf = number_format($r['confidence'], 2);
+
+            if ($r['tier'] === 'ambiguous') {
+                $distinct = $r['distinct_objects'];
+                echo "  {$subject} {$rel}: ambiguous -- {$distinct} distinct objects now (distinct_objects: {$distinct})\n";
+            } else {
+                echo "  {$subject} {$rel}: {$r['tier']} (confidence: {$conf})\n";
+            }
+        }
     }
 
     /**

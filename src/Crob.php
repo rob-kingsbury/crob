@@ -31,14 +31,14 @@ class Crob
         'why' => '/^why\s+(is|are|does|do)\s+(.+)/i',
     ];
 
-    public function __construct(string $dataDir = null)
+    public function __construct(string $dataDir = null, bool $verbose = false)
     {
         $this->dataDir = $dataDir ?? __DIR__ . '/../data';
 
         $this->brain = new Brain($this->dataDir);
         $this->voice = new Voice($this->dataDir);
         $this->curiosity = new Curiosity($this->dataDir);
-        $this->research = new Research($this->brain, $this->voice, $this->curiosity);
+        $this->research = new Research($this->brain, $this->voice, $this->curiosity, $verbose);
         $this->interests = new Interests($this->brain, $this->curiosity, $this->dataDir);
     }
 
@@ -213,7 +213,7 @@ class Crob
             $relation = Brain::REL_USED_BY;
         }
 
-        $this->brain->learn($topic, $relation, $fact, 0.9);  // High confidence - you told me!
+        $this->brain->learn($topic, $relation, $fact, 0.9, 'direct_teach');  // High confidence - you told me!
 
         return $this->voice->primateBrain() . " Got it! I learned that $topic $fact. "
              . $this->voice->expressCuriosity($topic);
